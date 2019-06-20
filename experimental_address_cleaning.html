@@ -12602,25 +12602,17 @@ div#notebook {
 <p>To test how these packages might be used, we've got a dataset of mixed scraped and fake american addresses, embedded in nonsense text, described and available at <a href="https://onethinglab.com/2018/03/05/extracting-addresses-from-text/">https://onethinglab.com/2018/03/05/extracting-addresses-from-text/</a>.  This isn't ideal because it's quite dirty - the real problem is explicity entered addresses that people have mucked up entering.</p>
 <p>I've also gotten the Companies House free dataset of UK registered company addresses.  These are structured, which means I can creatively "deconstruct" them to create dirty messy human-entered addresses.  A summary of the fields included can be found at <a href="http://resources.companieshouse.gov.uk/toolsToHelp/pdf/freeDataProductDataset.pdf">http://resources.companieshouse.gov.uk/toolsToHelp/pdf/freeDataProductDataset.pdf</a>.</p>
 <p>Finally, a smaller dataset of addresses is available from HM's Land registry, of prices paid for properties (1995 - 2012, no idea why that date window).  It can be gotten from <a href="https://data.gov.uk/dataset/314f77b3-e702-4545-8bcb-9ef8262ea0fd/archived-price-paid-information-residential-property-1995-to-2012">https://data.gov.uk/dataset/314f77b3-e702-4545-8bcb-9ef8262ea0fd/archived-price-paid-information-residential-property-1995-to-2012</a> and can be abused in the same way as the above CH dataset.  It has the advantage of being small enough to fit in memory so I don't have to sub-sample to get something to experiment with...</p>
-<h3 id="To-Do">To Do<a class="anchor-link" href="#To-Do">&#182;</a></h3><ul>
-<li>Postcodes with space between first letters and first numbers</li>
-<li>Spaces before and after postcode removed</li>
-<li>TEL/FAX/CONTACT NUMBER/EMAIL stripping</li>
-<li>Punctuation only separator between country and rest of sentence</li>
-</ul>
 <h3 id="Results-notes">Results notes<a class="anchor-link" href="#Results-notes">&#182;</a></h3><ul>
 <li>regex better than libpostal at getting UK postcodes BUT libpostal does at least get the area code of the postcode (when applied to clean data), which narrows area to sub-city.  Worth accounting for.</li>
 <li>Libpostal is easily confused by telephone and fax numbers accidentally included.  A regex that removes those would be worth developing.</li>
 <li>Libpostal doesn't seem to care much about parentheses, guess it filters those itself</li>
 <li>Libpostal gets the postcode more easily if it's at the end of the address as expected.  If it's at the from it confuses it for a house number.  Suggested solution;  reorder string with all mixed letter-character tokens shifted to end (retaining ordering) before attempting to retrieve postcode.</li>
-<li>The postcode regex doesn't depend on whitespace, so maybe use it on a version of the address with the whitespace stripped out!  For normalisation before sending to BigMatch, strip all whitespace from postcodes field as well so no matter how they're retrieved they end up looking the same?</li>
+<li>The postcode regex doesn't depend on whitespace, so maybe use it on a version of the address with the whitespace stripped out! Deals with accidental whitespace insertion.  For normalisation before sending to BigMatch, strip all whitespace from postcodes field as well so no matter how they're retrieved they end up looking the same?</li>
 <li>For UK postcodes the only situation in which libpostal outperforms the regex is if there's missing characters (it can often then at least get the area code).</li>
 <li>It may well be worth trying libpostal's parse_address on different orderings to retrieve postcode and country, before removing the detected addresses/postcodes from the strings and re-parsing the remainder of the address.</li>
 <li>A country shortening ("UK" rather than "United Kingdom") is detected if the punctuation is removed ("U.K" &lt;- "UK").</li>
-<li><p>Specific problem with "P.R.China", system will recognise "China", but not if it's in "P.R.China" OR "PRCHina".  Try parsing with punctuation removed OR substituted with a space each time?  Idea;  sub punctuation with spaces, join any sequential isolated letters ("U.K" -&gt; "U K" -&gt; "UK", "P.R.China" -&gt; "P R China" -&gt; "PR China").  Solves for initials and country pre-pending letters.  Should leave weird london postcodes (X5 Y 3B") undamaged.</p>
-</li>
-<li><p>A few of these suggestions essentially involve running libpostal over multiple variants.  I should check if there's a computational cost.</p>
-</li>
+<li>Specific problem with "P.R.China", system will recognise "China", but not if it's in "P.R.China" OR "PRCHina".  Try parsing with punctuation removed OR substituted with a space each time?  Idea;  sub punctuation with spaces, join any sequential isolated letters ("U.K" -&gt; "U K" -&gt; "UK", "P.R.China" -&gt; "P R China" -&gt; "PR China").  Solves for initials and country pre-pending letters.  Should leave weird london postcodes (X5 Y 3B") undamaged.</li>
+<li>There's some useful regexes at the bottom for detecting telephone and fax numbers in the original dirty string, should be useful for then stripping them out directly after fine-tuning.</li>
 </ul>
 <h3 id="Further-suggestions">Further suggestions<a class="anchor-link" href="#Further-suggestions">&#182;</a></h3><ul>
 <li>Use ONS's business name buzzword cull list to strip out company name components that might mess things up (or take everything before a given buzzword and call it a company name?)</li>
@@ -18514,7 +18506,7 @@ P.R.CHINA  |  None  |  None
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[125]:</div>
+<div class="prompt input_prompt">In&nbsp;[133]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">test1</span> <span class="o">=</span> <span class="s2">&quot;3 MONTE WAY TEL=87687 689679&quot;</span>
@@ -18528,10 +18520,10 @@ P.R.CHINA  |  None  |  None
 
 <span class="c1">#contact_regex = &quot;(TEL)[0-9*]|(FAX)[0-9*]|(CONTACT)[0-9*]&quot;</span>
 
-<span class="n">contact_regex</span> <span class="o">=</span> <span class="s2">&quot;TEL[0-9]{3,}|FAX[0-9]{3,}&quot;</span>
+<span class="n">contact_regex</span> <span class="o">=</span> <span class="s2">&quot;TEL[0-9 =]{3,}|FAX[0-9 =]{3,}&quot;</span>
 <span class="k">try</span><span class="p">:</span>
     <span class="c1"># remove all non alphanumeric characters and whitespace</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s2">&quot;[^0-9A-Za-z]&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">test6</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">test8</span> <span class="c1">#re.sub(&quot;[^0-9A-Za-z]&quot;, &quot;&quot;, test6).replace(&quot; &quot;, &quot;&quot;)</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">contact_regex</span><span class="p">,</span> <span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -18552,7 +18544,7 @@ P.R.CHINA  |  None  |  None
 
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre>3MONTEWAYSO143HR
+<pre>3 MONTE WAY TELAVIV
 list index out of range
 </pre>
 </div>
